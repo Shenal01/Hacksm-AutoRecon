@@ -45,18 +45,27 @@ nano .env
 *Note: Your `.env` file is excluded from Git, meaning your keys will never accidentally be pushed back to GitHub.*
 
 ### Step 4: Create Local Data Folders
-The Docker containers require local data directories to share wordlists, playbooks, and generated vulnerability reports.
+Because the pentest tools run inside isolated Docker containers, they need a safe way to receive wordlists and output scan reports back to your Kali machine. This is handled by mapping a local `/data` directory into the containers.
+
 ```bash
 # Create the internal directory structure
-mkdir -p data/{reports,wordlists,templates,temp}
+mkdir -p data/reports data/wordlists data/templates data/temp
+```
 
-# Transfer your custom Pentest-Playbook.md into the data folder
-# (Optionally use wget or curl to pull it from your private webserver)
+**What goes inside the `data/` folder?**
+*   `/data/reports`: This is where the AI and tools will drop final PDF, HTML, and Markdown vulnerability reports.
+*   `/data/wordlists`: Custom dictionaries (like SecLists or Assetnote) downloaded by `bootstrap.sh`. The tools execute from this directory.
+*   `/data/templates`: Stores raw YAML nuclei scanner templates.
+*   `/data/temp`: Temporary execution files like `alive_subs.txt` or `ferox_results.txt`.
+
+**IMPORTANT:** Transfer your custom `Pentest-Playbook.md` into the root of this `data/` folder before booting.
+```bash
 cp path/to/your/Pentest-Playbook.md data/
 ```
 
 ### Step 5: Boot the Infrastructure
-With the keys configured, simply bring the entire stack online. Docker will automatically pull the newest tool binaries and configure the networking.
+With the keys configured and the data folder scaffolded, initialize the stack. Docker Compose will automatically pull the official **n8n** image, build the custom Kali tools container, and configure the Tor proxy network.
+
 ```bash
 # Build the tool containers and start in detached mode
 docker-compose up -d --build
@@ -65,19 +74,21 @@ docker-compose up -d --build
 
 ---
 
-## 💻 Usage & Verification
+## 💻 Usage & n8n Configuration
 
-### 1. Accessing n8n
-Once `docker-compose` finishes:
-1.  Open your browser and navigate to the VM's IP address on port `5678` (e.g., `http://YOUR_VM_IP:5678`).
-2.  Follow the prompts to create your local Owner account for n8n.
-3.  Navigate to **Workflows**, hit **Import**, and upload your JSON workflow templates.
+### 1. Accessing the n8n Orchestrator
+n8n is fully installed and managed automatically via Docker. You do not need to install it on the host OS natively.
 
-### 2. How it Works
-*   The n8n orchestrator listens for trigger commands.
-*   It routes requests via SSH/API to the `pentest-tools-api` container, which runs as `root` locally but is completely sandboxed from your VM.
-*   Python/Ruby testing tools inside the container run inside highly isolated `pipx` or `gem` environments to prevent version crashes.
-*   Vulnerable payloads are safely routed through the internal `tor-proxy` container.
+1.  Open your browser and navigate to the VM's IP address on port `5678` (e.g., `http://YOUR_VM_IP:5678` or `http://localhost:5678` if running locally).
+2.  On the first boot, n8n will prompt you to create a secure local **Owner Account**. Enter an email and strong password.
+3.  Once logged in, click **Workflows** on the left sidebar.
+4.  Hit **Import from File** (or "Import from URL") and upload the master JSON pentest workflow you designed.
+
+### 2. How the Automation Engine Works
+*   The n8n orchestrator acts as the "brain". It listens for trigger commands (like Webhooks or Cron schedules).
+*   It issues bash commands via the internal Docker network to the `pentest-tools-api` container.
+*   The tools container executes the heavy scans (using `nuclei`, `feroxbuster`, etc.) as root, but safely sandboxed inside its own environment.
+*   Vulnerable payloads and crawling engines are safely routed through the internal `tor-proxy` container to mask your VM's true public IP.
 
 ### 3. Graceful Shutdown
 To completely turn off the pentest infrastructure, run:
