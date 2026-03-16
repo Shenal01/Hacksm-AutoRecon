@@ -29,35 +29,35 @@ Below is a step-by-step diagram showing the workflow logic for new users:
 flowchart TB
         %% Main happy-path
         subgraph P1[Phase 1 - Intake]
-            Start([Start Scan\nWebhook or Cron])
+            Start([Start Scan\nWebhook or Scheduler])
             Input[Parse and Validate Input]
-            Env[Preflight Checks\nEnvironment + Toolchain]
+            Env[Preflight\nEnv + Toolchain]
         end
 
         subgraph P2[Phase 2 - Recon and Mapping]
-            Recon[Recon Coordination]
-            Subenum[Deep Subdomain Enumeration]
+            Recon[Recon\nCoordinator]
+            Subenum[Deep Subdomain\nEnumeration]
             DNS[DNS Resolution]
             Ports[Port Scan]
-            HTTP[HTTP Probing]
-            Tech[Technology Fingerprinting]
+            HTTP[HTTP Probe]
+            Tech[Tech\nFingerprinting]
             Crawl[Crawling + Historical URLs]
-            Endpoints[Endpoint + Parameter Discovery]
-            JS[JavaScript Secret Scanning]
+            Endpoints[Endpoint + Param\nDiscovery]
+            JS[JavaScript Secret\nScan]
         end
 
         subgraph P3[Phase 3 - Guided Testing]
-            AI[Local Decision Engine]
-            Allow[Security Gate\nAllow-list Enforcement]
-            Exec[Execute Approved Commands]
-            Tests[Security Tests\nXSS, CVE, SQLi, LFI, API, CORS, 403 Bypass]
+            AI[Local\nDecision Engine]
+            Allow[Security Gate\nAllow-list Enforced]
+            Exec[Execute Approved\nCommands]
+            Tests[Security Tests\nXSS, CVE, SQLi, LFI\nAPI, CORS, 403]
         end
 
         subgraph P4[Phase 4 - Results]
-            Metrics[Aggregate Metrics and Findings]
-            Report[Generate Markdown Report]
+            Metrics[Aggregate Metrics\nand Findings]
+            Report[Generate Markdown\nReport]
             Save[(Save Report to Disk)]
-            Notify[[Discord Completion Alert]]
+            Notify[[Discord\nCompletion Alert]]
         end
 
         Start --> Input --> Env --> Recon --> Subenum --> DNS --> Ports --> HTTP --> Tech --> Crawl --> Endpoints --> JS --> AI --> Allow --> Exec --> Tests --> Metrics --> Report
@@ -65,17 +65,17 @@ flowchart TB
         Report --> Notify
 
         %% Side services
-        Error[[Global Error Handler]]
-        Cleanup[[Scheduled Temp Cleanup]]
+        Error[[Global Error\nHandler]]
+        Cleanup[[Scheduled Temp\nCleanup]]
         Error -. on failure .-> Notify
         Cleanup -. periodic maintenance .-> Save
 
         %% Visual styles
-        classDef intake fill:#eef7ff,stroke:#2f7fd8,stroke-width:2px,color:#12324f,font-size:16px;
-        classDef recon fill:#f3fbf5,stroke:#2f9e5f,stroke-width:2px,color:#163d28,font-size:16px;
-        classDef testing fill:#fff8ec,stroke:#cc8b2f,stroke-width:2px,color:#4a2d10,font-size:16px;
-        classDef results fill:#f7f2ff,stroke:#7a58b5,stroke-width:2px,color:#2e1e4f,font-size:16px;
-        classDef support fill:#fff1f1,stroke:#c74444,stroke-width:2px,color:#4f1c1c,stroke-dasharray: 4 3,font-size:16px;
+        classDef intake fill:#eef7ff,stroke:#2f7fd8,stroke-width:2px,color:#12324f;
+        classDef recon fill:#f3fbf5,stroke:#2f9e5f,stroke-width:2px,color:#163d28;
+        classDef testing fill:#fff8ec,stroke:#cc8b2f,stroke-width:2px,color:#4a2d10;
+        classDef results fill:#f7f2ff,stroke:#7a58b5,stroke-width:2px,color:#2e1e4f;
+        classDef support fill:#fff1f1,stroke:#c74444,stroke-width:2px,color:#4f1c1c,stroke-dasharray: 4 3;
 
         linkStyle default stroke-width:2px;
 
