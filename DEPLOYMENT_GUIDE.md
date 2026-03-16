@@ -245,6 +245,18 @@ docker compose build --no-cache pentest-tools-api
 docker compose up -d
 ```
 
+### n8n build fails with "Unsupported base image: no known package manager found"
+- Cause: new upstream `docker.n8n.io/n8nio/n8n` images no longer expose a package manager in the final stage.
+- Fix: pull latest repo and rebuild only `n8n`:
+
+```bash
+git pull
+docker compose build --no-cache n8n
+docker compose up -d
+```
+
+- You do not need to re-clone the repository for this issue.
+
 ### No report generated
 - Open failed execution in n8n and inspect nodes:
   - `Collect Coverage Metrics`
