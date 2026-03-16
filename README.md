@@ -26,7 +26,7 @@ For full repo push + VM setup instructions, see:
 Below is a step-by-step diagram showing the workflow logic for new users:
 
 ```mermaid
-flowchart LR
+flowchart TB
         %% Main happy-path
         subgraph P1[Phase 1 - Intake]
             Start([Start Scan\nWebhook or Cron])
@@ -71,11 +71,13 @@ flowchart LR
         Cleanup -. periodic maintenance .-> Save
 
         %% Visual styles
-        classDef intake fill:#eef7ff,stroke:#2f7fd8,stroke-width:1.5px,color:#12324f;
-        classDef recon fill:#f3fbf5,stroke:#2f9e5f,stroke-width:1.5px,color:#163d28;
-        classDef testing fill:#fff8ec,stroke:#cc8b2f,stroke-width:1.5px,color:#4a2d10;
-        classDef results fill:#f7f2ff,stroke:#7a58b5,stroke-width:1.5px,color:#2e1e4f;
-        classDef support fill:#fff1f1,stroke:#c74444,stroke-width:1.5px,color:#4f1c1c,stroke-dasharray: 4 3;
+        classDef intake fill:#eef7ff,stroke:#2f7fd8,stroke-width:2px,color:#12324f,font-size:16px;
+        classDef recon fill:#f3fbf5,stroke:#2f9e5f,stroke-width:2px,color:#163d28,font-size:16px;
+        classDef testing fill:#fff8ec,stroke:#cc8b2f,stroke-width:2px,color:#4a2d10,font-size:16px;
+        classDef results fill:#f7f2ff,stroke:#7a58b5,stroke-width:2px,color:#2e1e4f,font-size:16px;
+        classDef support fill:#fff1f1,stroke:#c74444,stroke-width:2px,color:#4f1c1c,stroke-dasharray: 4 3,font-size:16px;
+
+        linkStyle default stroke-width:2px;
 
         class Start,Input,Env intake;
         class Recon,Subenum,DNS,Ports,HTTP,Tech,Crawl,Endpoints,JS recon;
