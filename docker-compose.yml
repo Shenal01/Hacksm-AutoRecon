@@ -66,6 +66,8 @@ services:
     environment:
       # Tool API keys injected so commands like wpscan --api-token $WPSCAN_API_TOKEN work
       - WPSCAN_API_TOKEN=${WPSCAN_API_TOKEN}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GH_TOKEN=${GH_TOKEN}
       - SHODAN_API_KEY=${SHODAN_API_KEY}
       - OAST_SERVER=${OAST_SERVER}
       - TOOLS_SSH_PASSWORD=${TOOLS_SSH_PASSWORD}
