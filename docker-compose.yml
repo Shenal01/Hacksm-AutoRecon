@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     image: pentest-automation-n8n
     restart: always
+    mem_limit: 1g
+    memswap_limit: 1g
     depends_on:
       pentest-tools-api:
         condition: service_healthy
@@ -48,6 +50,8 @@ services:
       context: ./pentest-tools-api
       dockerfile: Dockerfile
     restart: always
+    mem_limit: 5g
+    memswap_limit: 5g
     healthcheck:
       test: ["CMD-SHELL", "bash -lc 'command -v sshd >/dev/null 2>&1 && command -v subfinder >/dev/null 2>&1 && command -v nuclei >/dev/null 2>&1 && test -w /data/temp && test -w /data/reports'"]
       interval: 60s
@@ -78,6 +82,8 @@ services:
   tor-proxy:
     image: dperson/torproxy
     restart: always
+    mem_limit: 256m
+    memswap_limit: 256m
     healthcheck:
       test: ["CMD-SHELL", "curl -sf --socks5-hostname 127.0.0.1:9050 https://check.torproject.org/api/ip -o /dev/null --max-time 15 || exit 1"]
       interval: 30s
