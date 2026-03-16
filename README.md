@@ -19,6 +19,29 @@ A fully containerized, autonomous penetration testing and bug bounty framework. 
 - [Discord Webhook URL](https://support.discord.com/hc/en-us/articles/228383668) — alerting
 - [Gemini API Key](https://aistudio.google.com/app/apikey) — critical finding verification
 
+### Optional: Local AI Model (Ollama)
+
+The workflow uses **Ollama** (running locally) to summarize medium-severity findings and drive the AI agent — at zero API cost. The Ollama service is **disabled by default** in `docker-compose.yml` because it requires significant RAM.
+
+**Requirements to enable:** 16 GB+ RAM on the VM.
+
+**To enable:**
+
+1. Open `docker-compose.yml` and uncomment the `ollama` service block and the `ollama_data` volume.
+2. After `docker-compose up -d --build`, pull the model once:
+
+```bash
+# Recommended: Llama3 8B (~4.7 GB download, stored in Docker volume)
+docker exec -it pentest-automation-ollama-1 ollama pull llama3
+
+# Alternative: Mistral 7B (~4.1 GB, slightly faster on CPU)
+docker exec -it pentest-automation-ollama-1 ollama pull mistral
+```
+
+The model is stored in the `ollama_data` Docker volume. It survives container restarts and only needs to be pulled once.
+
+**If Ollama is not running:** The workflow falls back automatically to a default Nuclei scan and routes all findings directly to Gemini for verification. Nothing breaks — you just pay a few extra cents per scan.
+
 ---
 
 ## Repository Structure
