@@ -54,10 +54,10 @@ gh repo create <repo-name> --private --source . --remote origin --push
 ```powershell
 git remote remove origin 2>$null
 git remote add origin https://github.com/<your-user>/<repo-name>.git
-git push -u origin main
+git push -u origin HEAD
 ```
 
-If your default branch is `master`, replace `main` accordingly.
+`HEAD` pushes your current checked-out branch (for example `main` or `master`) and avoids branch-name mismatch errors.
 
 ## 2. Prepare VM (Ubuntu 22.04/24.04 recommended)
 
@@ -164,9 +164,12 @@ Wait until bootstrap completes and services are healthy.
 
 ```bash
 curl -X POST "http://<vm-ip>:5678/webhook/start-scan" \
+  -u "<N8N_BASIC_AUTH_USER>:<N8N_BASIC_AUTH_PASSWORD>" \
   -H "Content-Type: application/json" \
   -d '{"target":"example.com"}'
 ```
+
+If you intentionally disabled basic auth (`N8N_BASIC_AUTH_ACTIVE=false`), remove the `-u` flag.
 
 ### 5.2 Validate expected outputs
 Check in n8n execution:
