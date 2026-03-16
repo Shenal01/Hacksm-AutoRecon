@@ -1,97 +1,306 @@
-# 🚀 AI-Driven Automated Pentest Toolkit (n8n + Docker + Ollama)
-This repository contains a fully containerized, autonomous bug bounty and penetration testing framework. It utilizes **n8n** to securely orchestrate over 20+ of the latest industry-standard tools (ProjectDiscovery, x8, feroxbuster) via isolated Docker environments, all directed by local AI Playbooks.
+# AI-Powered Pentest Automation Framework
 
-## 📋 Requirements
-Tested and built for a fresh **Kali Linux** or Ubuntu VM. 
-*   **Minimum Specs:** 4 vCPU, 8GB RAM, 50GB Disk. 
-*   **Recommended:** 8 vCPU, 16GB+ RAM (Ideal if using local LLMs).
+A fully containerized, autonomous penetration testing and bug bounty framework. n8n orchestrates 20+ industry-standard tools (ProjectDiscovery suite, feroxbuster, dalfox, sqlmap, and more) across isolated Docker containers, directed by a local AI agent backed by Ollama and Gemini.
 
 ---
 
-## 🛠️ Deployment Instructions (Fresh VM Guide)
+## Requirements
 
-To deploy this entire infrastructure on a brand new Kali/Ubuntu machine, follow these steps exactly:
+| Spec | Minimum | Recommended |
+|------|---------|-------------|
+| CPU | 4 vCPU | 8 vCPU |
+| RAM | 8 GB | 16+ GB |
+| Disk | 50 GB | 100 GB |
+| OS | Kali Linux or Ubuntu 22.04+ | Kali Linux 2024.x |
 
-### Step 1: Install Dependencies on the Host OS
-Before doing anything, ensure your new server has Docker and Git installed.
+**API Keys Required:**
+- [Shodan API Key](https://account.shodan.io/) — passive recon
+- [GitHub Personal Access Token](https://github.com/settings/tokens) — secret leak hunting
+- [Discord Webhook URL](https://support.discord.com/hc/en-us/articles/228383668) — alerting
+- [Gemini API Key](https://aistudio.google.com/app/apikey) — critical finding verification
+
+---
+
+## Repository Structure
+
+```
+pentest-automation/
+├── docker-compose.yml          # Orchestrates n8n, tools API, and Tor proxy
+├── pentest-tools-api/
+│   ├── Dockerfile              # Ubuntu-based container with all tools pre-installed
+│   └── bootstrap.sh            # Auto-fetches latest tool binaries and wordlists on boot
+├── pentest_workflow.json       # Complete n8n workflow — import this into n8n
+├── .env.example                # Template for all required API keys
+├── .gitignore                  # Excludes .env and /data from git
+└── data/                       # NOT tracked by git — created manually on your VM
+    ├── Pentest-Playbook.md     # Your personal testing playbook (AI reads this)
+    ├── reports/                # Final vulnerability reports are saved here
+    ├── wordlists/              # SecLists and Assetnote lists (auto-downloaded)
+    ├── templates/              # Nuclei templates (auto-updated)
+    └── temp/                   # Intermediate scan files (alive_subs.txt, etc.)
+```
+
+---
+
+## Deployment Guide — From Zero to Running
+
+### Step 1: Prepare the Host OS
+
+On your fresh Kali Linux or Ubuntu VM:
+
 ```bash
-# Update OS and install prerequisites
+# Update the OS
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y git ufw docker.io docker-compose curl jq
 
-# Enable Docker and add your user to the docker group (No sudo needed later)
+# Install all required host dependencies
+sudo apt install -y git docker.io docker-compose curl jq ufw
+
+# Enable Docker and configure permissions
 sudo systemctl enable docker --now
 sudo usermod -aG docker $USER
 
-# Log out of SSH and log back in to apply the group permissions!
+# IMPORTANT: Log out and log back in before proceeding.
+# The docker group permissions will not apply until you do.
+newgrp docker
 ```
 
+---
+
 ### Step 2: Clone the Repository
-Clone this exact setup to your machine.
+
 ```bash
 git clone https://github.com/YOUR_USERNAME/pentest-automation.git
 cd pentest-automation
 ```
 
-### Step 3: Configure API Keys & Environment
-You must configure your API keys (Shodan, GitHub, Discord Webhook) before starting the engine.
+---
+
+### Step 3: Configure API Keys
+
 ```bash
-# Copy the example environment file
+# Copy the environment template
 cp .env.example .env
 
-# Edit the file using nano or vim and paste your specific keys
+# Open and fill in your API keys
 nano .env
 ```
-*Note: Your `.env` file is excluded from Git, meaning your keys will never accidentally be pushed back to GitHub.*
 
-### Step 4: Create Local Data Folders
-Because the pentest tools run inside isolated Docker containers, they need a safe way to receive wordlists and output scan reports back to your Kali machine. This is handled by mapping a local `/data` directory into the containers.
+Required values in `.env`:
 
-```bash
-# Create the internal directory structure
-mkdir -p data/reports data/wordlists data/templates data/temp
+```env
+SHODAN_API_KEY=your_shodan_key_here
+GITHUB_TOKEN=your_github_pat_here
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your_id/your_token
+GEMINI_API_KEY=your_gemini_key_here
+
+# Optional: comma-separated domains for weekly monitoring
+MONITOR_TARGETS=target1.com,target2.com
 ```
 
-**What goes inside the `data/` folder?**
-*   `/data/reports`: This is where the AI and tools will drop final PDF, HTML, and Markdown vulnerability reports.
-*   `/data/wordlists`: Custom dictionaries (like SecLists or Assetnote) downloaded by `bootstrap.sh`. The tools execute from this directory.
-*   `/data/templates`: Stores raw YAML nuclei scanner templates.
-*   `/data/temp`: Temporary execution files like `alive_subs.txt` or `ferox_results.txt`.
-
-**IMPORTANT:** Transfer your custom `Pentest-Playbook.md` into the root of this `data/` folder before booting.
-```bash
-cp path/to/your/Pentest-Playbook.md data/
-```
-
-### Step 5: Boot the Infrastructure
-With the keys configured and the data folder scaffolded, initialize the stack. Docker Compose will automatically pull the official **n8n** image, build the custom Kali tools container, and configure the Tor proxy network.
-
-```bash
-# Build the tool containers and start in detached mode
-docker-compose up -d --build
-```
-*Note: The first time you run this command, it will take several minutes to download tools (Nuclei, SQLMap, Feroxbuster) via `bootstrap.sh`. You can monitor the progress by typing: `docker logs -f pentest-tools-api`.*
+> Your `.env` file is blocked from git by `.gitignore`. Your keys will never be pushed to GitHub.
 
 ---
 
-## 💻 Usage & n8n Configuration
+### Step 4: Create the Data Directory Structure
 
-### 1. Accessing the n8n Orchestrator
-n8n is fully installed and managed automatically via Docker. You do not need to install it on the host OS natively.
+The Docker containers share files via the local `data/` folder. Create it and transfer your playbook:
 
-1.  Open your browser and navigate to the VM's IP address on port `5678` (e.g., `http://YOUR_VM_IP:5678` or `http://localhost:5678` if running locally).
-2.  On the first boot, n8n will prompt you to create a secure local **Owner Account**. Enter an email and strong password.
-3.  Once logged in, click **Workflows** on the left sidebar.
-4.  Hit **Import from File** (or "Import from URL") and upload the master JSON pentest workflow you designed.
-
-### 2. How the Automation Engine Works
-*   The n8n orchestrator acts as the "brain". It listens for trigger commands (like Webhooks or Cron schedules).
-*   It issues bash commands via the internal Docker network to the `pentest-tools-api` container.
-*   The tools container executes the heavy scans (using `nuclei`, `feroxbuster`, etc.) as root, but safely sandboxed inside its own environment.
-*   Vulnerable payloads and crawling engines are safely routed through the internal `tor-proxy` container to mask your VM's true public IP.
-
-### 3. Graceful Shutdown
-To completely turn off the pentest infrastructure, run:
 ```bash
-docker-compose down
+# Create the required folders
+mkdir -p data/reports data/wordlists data/templates data/temp
+
+# Copy your Pentest-Playbook.md into data/
+# The AI Agent reads this file to select the correct tools for each target
+cp /path/to/your/Pentest-Playbook.md data/
 ```
+
+**Folder purpose summary:**
+
+| Folder | Contents |
+|--------|----------|
+| `data/reports/` | Final Markdown vulnerability reports per scan |
+| `data/wordlists/` | SecLists and Assetnote API wordlists (auto-downloaded) |
+| `data/templates/` | Nuclei CVE/misconfiguration templates (auto-updated) |
+| `data/temp/` | Intermediate scan output (subdomains, URLs, parameters) |
+
+---
+
+### Step 5: Boot the Infrastructure
+
+```bash
+docker-compose up -d --build
+```
+
+Docker Compose will:
+1. Pull the official `n8n` image
+2. Build the `pentest-tools-api` container from the local `Dockerfile`
+3. Run `bootstrap.sh` to install the latest tool binaries, download SecLists, and update Nuclei templates
+4. Start the Tor proxy container for evasion routing
+
+> The first build takes 10–20 minutes depending on internet speed. Monitor progress:
+
+```bash
+docker logs -f pentest-tools-api
+```
+
+Wait until you see: `Bootstrap Complete. Container is armed and ready.`
+
+Verify all three containers are running:
+
+```bash
+docker ps
+# You should see: pentest-tools-api, n8n, tor-proxy — all "Up"
+```
+
+---
+
+### Step 6: Configure SSH Access (n8n to Tools Container)
+
+n8n issues commands to the tools container over SSH. You need to confirm the tools container accepts the connection:
+
+```bash
+# Test SSH connectivity from your host to the tools container
+docker exec -it pentest-tools-api bash
+
+# Inside the container, verify key tools are installed
+which subfinder httpx nuclei katana dalfox feroxbuster sqlmap
+# All should return a path — if any are missing, re-run:
+# docker restart pentest-tools-api
+exit
+```
+
+---
+
+### Step 7: Access n8n and Import the Workflow
+
+n8n is installed and managed entirely by Docker. No host-level installation is needed.
+
+1. Open your browser and navigate to:
+   ```
+   http://localhost:5678
+   ```
+   (If accessing remotely, replace `localhost` with your VM's IP address)
+
+2. On first boot, n8n will prompt you to create an **Owner Account**. Enter an email and a strong password.
+
+3. Once logged in, click **Settings** (bottom left) → **Environment Variables** → add the following:
+
+   | Variable | Value |
+   |----------|-------|
+   | `SHODAN_API_KEY` | Your Shodan key |
+   | `GITHUB_TOKEN` | Your GitHub PAT |
+   | `DISCORD_WEBHOOK_URL` | Your webhook URL |
+   | `GEMINI_API_KEY` | Your Gemini key |
+   | `MONITOR_TARGETS` | `target1.com,target2.com` |
+
+4. Click **Workflows** in the left sidebar → **Add Workflow** → top-right `...` menu → **Import from File**
+
+5. Select `pentest_workflow.json` from the cloned repository.
+
+6. The workflow will import with all nodes pre-connected. Click **Activate** (top right toggle) to enable it.
+
+---
+
+### Step 8: Trigger Your First Scan
+
+Send a POST request to the webhook trigger. You can do this from any terminal:
+
+```bash
+# Trigger a scan against a target (must be an authorized domain)
+curl -X POST http://localhost:5678/webhook/start-scan \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target": "example.com",
+    "out_of_scope": ["admin.example.com"]
+  }'
+```
+
+Or trigger from Postman / Insomnia / any HTTP client with the same URL and body.
+
+**What happens next (automated):**
+1. Templates and wordlists are updated to the latest versions
+2. ASN mapping, Shodan, and GitHub dorking run in parallel
+3. Deep subdomain enumeration runs via `subenum-advanced.sh`
+4. DNS resolution, HTTP probing, WAF detection, and tech fingerprinting run
+5. Katana crawls live endpoints in headless mode; `gau` fetches historical URLs
+6. The AI Agent (Ollama) reads your Playbook and selects the exact tools for the tech stack
+7. Dalfox, Feroxbuster, and Nuclei run in parallel for active scanning
+8. Findings are classified by severity and routed to Gemini (critical) or Ollama (medium)
+9. A Markdown report is saved to `data/reports/` and a Discord alert fires
+
+---
+
+### Step 9: Reading Your Results
+
+**Vulnerability Reports:**
+
+Reports are saved to the shared volume and accessible immediately from your host machine:
+
+```bash
+ls data/reports/
+# Output: example.com_scan_1234567890.md
+
+cat data/reports/example.com_scan_1234567890.md
+```
+
+Each report contains:
+- Summary table of findings by severity
+- Critical/High section verified and written by Gemini
+- Medium section summarized by Ollama
+- Low/Info findings listed by endpoint
+
+**Discord Alerts:**
+
+Every scan sends a colour-coded embed to your Discord channel:
+- Red embed = Critical or High findings confirmed
+- Yellow embed = Medium findings only
+- Green embed = Clean scan, no significant findings
+
+**Weekly Monitoring:**
+
+The workflow automatically runs every Friday at midnight. It compares discovered subdomains against the stored baseline for each domain in `MONITOR_TARGETS`. If new subdomains appear, a Discord alert fires immediately. If nothing changed, it stays silent.
+
+---
+
+## Operational Commands
+
+```bash
+# Start all containers
+docker-compose up -d
+
+# Stop all containers
+docker-compose down
+
+# Restart the tools container (e.g. after a tool fails to install)
+docker restart pentest-tools-api
+
+# View live logs from the tools container
+docker logs -f pentest-tools-api
+
+# View live n8n logs
+docker logs -f pentest-automation-n8n-1
+
+# Force rebuild from scratch (after Dockerfile changes)
+docker-compose up -d --build --force-recreate
+
+# Shell into the tools container
+docker exec -it pentest-tools-api bash
+
+# View a completed report
+cat data/reports/<target>_scan_<id>.md
+```
+
+---
+
+## Security Notes
+
+- The tools container runs as `root` internally — this is required for raw socket tools (`masscan`, `naabu`). It is completely isolated from the host OS by Docker's container boundary.
+- All AI-generated commands pass through a security gate in the workflow that blocks destructive patterns (`rm -rf`, `dd`, `mkfs`, etc.) before execution.
+- Your `.env` file and `data/` folder are never committed to GitHub.
+- Tool execution is rate-limited and Tor-proxied by default to protect your IP.
+
+---
+
+## Disclaimer
+
+This framework is strictly for authorized security testing and bug bounty programs where you have explicit written permission to test the target. Unauthorized use against systems you do not own is illegal.
