@@ -32,82 +32,82 @@ This workflow is designed as a phased security pipeline with deterministic gates
 | `6. Aggregation` | Merge branches and normalize findings | severity buckets + coverage metrics |
 | `7. Reporting` | Build and persist final report | markdown report on disk + Discord alert |
 
-## Visual Workflow Diagram
+## Architecture at a Glance
 
-The diagram below shows the full flow from trigger to report, including error and cleanup side-paths:
+This first diagram shows the system components and how they interact.
 
 ```mermaid
 flowchart TB
-        %% Main happy-path
-        subgraph P1[Phase 1 - Intake]
-            Start([Start])
-            Input[Validate Input]
-            Env[Preflight]
-        end
+    U[Operator]
+    CRON[Scheduler]
+    TGT[Authorized Target]
+    API[External APIs]
+    DISCORD[Discord]
 
-        subgraph P2[Phase 2 - Recon and Mapping]
-            Recon[Recon]
-            Subenum[Subdomain Enum]
-            DNS[DNS]
-            Ports[Ports]
-            HTTP[HTTP Probe]
-            Tech[Tech Fingerprint]
-            Crawl[Crawl + History]
-            Endpoints[Endpoint Discovery]
-            JS[JS Secret Scan]
-        end
+    subgraph STACK[Docker Compose on VM]
+        N8N[n8n]
+        TOOLS[pentest-tools-api]
+        TOR[tor-proxy]
+        DATA[(./data)]
+    end
 
-        subgraph P3[Phase 3 - Guided Testing]
-            AI[Decision Engine]
-            Allow[Security Gate]
-            Exec[Run Approved Cmd]
-            Tests[Vuln Tests]
-        end
+    U --> N8N
+    CRON --> N8N
+    N8N --> TOOLS
+    N8N --> TOR
 
-        subgraph P4[Phase 4 - Results]
-            Metrics[Aggregate Findings]
-            Report[Build Report]
-            Save[(Save Report)]
-            Notify[[Discord Alert]]
-        end
+    TOOLS <--> DATA
+    N8N <--> DATA
 
-        Start --> Input --> Env --> Recon --> Subenum --> DNS --> Ports --> HTTP --> Tech --> Crawl --> Endpoints --> JS --> AI --> Allow --> Exec --> Tests --> Metrics --> Report
-        Report --> Save
-        Report --> Notify
+    TOOLS --> TGT
+    N8N --> API
+    N8N --> DISCORD
 
-        %% Side services
-        Error[[Error Handler]]
-        Cleanup[[Temp Cleanup]]
-        Error -. on failure .-> Notify
-        Cleanup -. periodic maintenance .-> Save
+    classDef core fill:#eaf4ff,stroke:#2f7fd8,stroke-width:2px,color:#12324f;
+    classDef svc fill:#f2fbf4,stroke:#2f9e5f,stroke-width:2px,color:#163d28;
+    classDef ext fill:#fff6ec,stroke:#cc8b2f,stroke-width:2px,color:#4a2d10;
 
-        %% Visual styles
-        classDef intake fill:#eef7ff,stroke:#2f7fd8,stroke-width:2px,color:#12324f;
-        classDef recon fill:#f3fbf5,stroke:#2f9e5f,stroke-width:2px,color:#163d28;
-        classDef testing fill:#fff8ec,stroke:#cc8b2f,stroke-width:2px,color:#4a2d10;
-        classDef results fill:#f7f2ff,stroke:#7a58b5,stroke-width:2px,color:#2e1e4f;
-        classDef support fill:#fff1f1,stroke:#c74444,stroke-width:2px,color:#4f1c1c,stroke-dasharray: 4 3;
-
-        linkStyle default stroke-width:2px;
-
-        class Start,Input,Env intake;
-        class Recon,Subenum,DNS,Ports,HTTP,Tech,Crawl,Endpoints,JS recon;
-        class AI,Allow,Exec,Tests testing;
-        class Metrics,Report,Save,Notify results;
-        class Error,Cleanup support;
+    class N8N,TOOLS,TOR,DATA core;
+    class U,CRON svc;
+    class TGT,API,DISCORD ext;
 ```
 
-**Reading tip:** follow the center path top to bottom for the happy path, then check dashed arrows for side services.
+## Workflow Lifecycle (Step-by-Step)
 
-Legend:
-- `Validate Input`: Parse and validate input target and scope.
-- `Preflight`: Verify binaries, directories, and template readiness.
-- `Subdomain Enum`: Deep subdomain discovery (script + passive tools).
-- `Tech Fingerprint`: Detect technologies from live hosts.
-- `Endpoint Discovery`: Build endpoint list and discover parameters.
-- `Decision Engine`: Select tools based on findings and allow-list policy.
-- `Vuln Tests`: XSS, CVE, SQLi, LFI, API, CORS, and 403 checks.
-- `Aggregate Findings`: Merge outputs and build normalized severity buckets.
+This second diagram shows the execution order inside the workflow.
+
+```mermaid
+flowchart TB
+    S1[1 Intake] --> S2[2 Preflight]
+    S2 --> S3[3 Discovery]
+    S3 --> S4[4 Decision and Security Gate]
+    S4 --> S5[5 Parallel Vulnerability Checks]
+    S5 --> S6[6 Merge and Aggregation]
+    S6 --> S7[7 Reporting and Alerts]
+
+    E1[Error Workflow] -. on failure .-> S7
+    C1[Scheduled Cleanup] -. maintenance .-> S7
+
+    classDef stage fill:#f7f2ff,stroke:#7a58b5,stroke-width:2px,color:#2e1e4f;
+    classDef side fill:#fff1f1,stroke:#c74444,stroke-width:2px,color:#4f1c1c,stroke-dasharray: 4 3;
+
+    class S1,S2,S3,S4,S5,S6,S7 stage;
+    class E1,C1 side;
+```
+
+### What Each Step Means
+
+| Step | What happens |
+|---|---|
+| `1 Intake` | Validate input, normalize scope, create `scan_id` |
+| `2 Preflight` | Verify tools/dirs and refresh templates |
+| `3 Discovery` | Enumerate subdomains, DNS, ports, tech, endpoints, JS |
+| `4 Decision and Security Gate` | Build allowed command set and block unsafe patterns |
+| `5 Parallel Vulnerability Checks` | Execute XSS/CVE/LFI/SQLi/API/CORS/403 branches |
+| `6 Merge and Aggregation` | Wait for branches, compute coverage, normalize findings |
+| `7 Reporting and Alerts` | Generate markdown report, save file, send Discord alert |
+
+Reading tip: start at `1 Intake` and follow arrows downward; dashed arrows are support flows.
 
 ## Why This Design Works
 
