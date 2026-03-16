@@ -257,12 +257,23 @@ docker compose up -d
 
 ### tor-proxy keeps restarting with "Unknown option 'PASSWORD'"
 - Cause: `dperson/torproxy` treats passed env keys as Tor config options; `TOR_PASSWORD` ends up as unsupported `PASSWORD`.
-- Fix: remove `TOR_PASSWORD` from `docker-compose.yml` and `.env`, then recreate tor service:
+- Fix: remove `TOR_PASSWORD` from `docker-compose.yml` and `.env`, then remove and recreate tor service to clear stale state:
 
 ```bash
-docker compose up -d --force-recreate tor-proxy
+docker compose rm -sfv tor-proxy
+docker compose up -d tor-proxy
 docker compose ps
-docker compose logs --tail=100 tor-proxy
+docker compose logs --since=2m tor-proxy
+```
+
+### tor-proxy warns about public Socks/TransPort bindings
+- Log warnings like `0.0.0.0:9050` or `0.0.0.0:9040` mean Tor is reachable on all interfaces.
+- If host-level access to Tor is not required, bind published ports to localhost only in `docker-compose.yml`:
+
+```yaml
+ports:
+  - "127.0.0.1:9050:9050"
+  - "127.0.0.1:8118:8118"
 ```
 
 ### No report generated
