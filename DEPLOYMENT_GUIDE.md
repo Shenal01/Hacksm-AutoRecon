@@ -126,7 +126,6 @@ Set all required values:
 - `WPSCAN_API_TOKEN`
 - `OAST_SERVER`
 - `TOOLS_SSH_PASSWORD`
-- `TOR_PASSWORD`
 - `MONITOR_TARGETS`
 - `N8N_BASIC_AUTH_ACTIVE=true`
 - `N8N_BASIC_AUTH_USER`
@@ -220,7 +219,6 @@ tar -czf reports-backup-$(date +%F).tar.gz data/reports
 - Keep `.env` only on host, never commit it
 - Use strong random values for:
   - `TOOLS_SSH_PASSWORD`
-  - `TOR_PASSWORD`
   - `N8N_BASIC_AUTH_PASSWORD`
 - Restrict n8n network exposure (`5678`) to trusted IP/VPN
 - Rotate tokens (GitHub, Shodan, Gemini, WPScan, Discord) periodically
@@ -256,6 +254,16 @@ docker compose up -d
 ```
 
 - You do not need to re-clone the repository for this issue.
+
+### tor-proxy keeps restarting with "Unknown option 'PASSWORD'"
+- Cause: `dperson/torproxy` treats passed env keys as Tor config options; `TOR_PASSWORD` ends up as unsupported `PASSWORD`.
+- Fix: remove `TOR_PASSWORD` from `docker-compose.yml` and `.env`, then recreate tor service:
+
+```bash
+docker compose up -d --force-recreate tor-proxy
+docker compose ps
+docker compose logs --tail=100 tor-proxy
+```
 
 ### No report generated
 - Open failed execution in n8n and inspect nodes:
