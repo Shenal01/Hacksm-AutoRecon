@@ -13,11 +13,14 @@ services:
       - N8N_PERSONALIZATION_ENABLED=false
       - N8N_EMAIL_MODE=false
       - GENERIC_TIMEZONE=UTC
-      # Expose secrets from host .env into n8n automatically
+      # Expose secrets from host .env into n8n workflow environment
       - SHODAN_API_KEY=${SHODAN_API_KEY}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - WPSCAN_API_TOKEN=${WPSCAN_API_TOKEN}
+      - OAST_SERVER=${OAST_SERVER}
+      - MONITOR_TARGETS=${MONITOR_TARGETS}
     volumes:
       - n8n_data:/home/node/.n8n
       - ./data:/data
@@ -34,8 +37,15 @@ services:
     cap_add:
       - NET_ADMIN
       - NET_RAW
+    environment:
+      # Tool API keys injected so commands like wpscan --api-token $WPSCAN_API_TOKEN work
+      - WPSCAN_API_TOKEN=${WPSCAN_API_TOKEN}
+      - SHODAN_API_KEY=${SHODAN_API_KEY}
+      - OAST_SERVER=${OAST_SERVER}
     volumes:
       - ./data:/data
+      # Mount subenum-advanced.sh read-only so the container can call it directly
+      - ../subenum-advanced.sh:/data/subenum-advanced.sh:ro
     networks:
       - pentest_network
     depends_on:
@@ -52,7 +62,7 @@ services:
     networks:
       - pentest_network
 
-# (Optional) Local Ollama LLM Container. Uncomment if your Kal VM has > 16GB RAM and you want free local AI filtering.
+# (Optional) Local Ollama LLM Container. Uncomment if your Kali VM has > 16GB RAM.
 #  ollama:
 #    image: ollama/ollama
 #    restart: always
@@ -70,3 +80,4 @@ volumes:
 networks:
   pentest_network:
     driver: bridge
+
