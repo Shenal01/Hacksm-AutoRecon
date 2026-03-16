@@ -80,10 +80,10 @@ This second diagram shows the execution order inside the workflow.
 flowchart TB
     S1[1 Intake] --> S2[2 Preflight]
     S2 --> S3[3 Discovery]
-    S3 --> S4[4 Decision and Security Gate]
-    S4 --> S5[5 Parallel Vulnerability Checks]
-    S5 --> S6[6 Merge and Aggregation]
-    S6 --> S7[7 Reporting and Alerts]
+    S3 --> S4[4 Decision plus Gate]
+    S4 --> S5[5 Parallel Checks]
+    S5 --> S6[6 Merge plus Aggregate]
+    S6 --> S7[7 Report plus Alerts]
 
     E1[Error Workflow] -. on failure .-> S7
     C1[Scheduled Cleanup] -. maintenance .-> S7
