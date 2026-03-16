@@ -50,7 +50,7 @@ flowchart LR
             AI[Local Decision Engine]
             Allow[Security Gate\nAllow-list Enforcement]
             Exec[Execute Approved Commands]
-            Tests[Security Tests\nXSS | CVE | SQLi | LFI | API | CORS | 403 Bypass]
+            Tests[Security Tests\nXSS, CVE, SQLi, LFI, API, CORS, 403 Bypass]
         end
 
         subgraph P4[Phase 4 - Results]
