@@ -2,8 +2,17 @@ version: '3.8'
 
 services:
   n8n:
-    image: docker.n8n.io/n8nio/n8n
+    build:
+      context: ./n8n
+      dockerfile: Dockerfile
+    image: pentest-automation-n8n
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const http=require('http'); const attempt=(path, fallback)=>http.get({host:'127.0.0.1',port:5678,path}, res => process.exit(res.statusCode < 500 ? 0 : 1)).on('error', () => fallback ? attempt('/', false) : process.exit(1)); attempt('/healthz', true);\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
     ports:
       - "5678:5678"
     environment:
@@ -21,6 +30,10 @@ services:
       - WPSCAN_API_TOKEN=${WPSCAN_API_TOKEN}
       - OAST_SERVER=${OAST_SERVER}
       - MONITOR_TARGETS=${MONITOR_TARGETS}
+      - TOOLS_SSH_PASSWORD=${TOOLS_SSH_PASSWORD}
+      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE}
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
     volumes:
       - n8n_data:/home/node/.n8n
       - ./data:/data
@@ -32,6 +45,12 @@ services:
       context: ./pentest-tools-api
       dockerfile: Dockerfile
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "bash -lc 'command -v sshd >/dev/null 2>&1 && command -v subfinder >/dev/null 2>&1 && command -v nuclei >/dev/null 2>&1 && test -w /data/temp && test -w /data/reports'"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 1200s
     # Privileged is necessary for tools like masscan/naabu to use raw sockets for fast SYN scans.
     privileged: true
     cap_add:
@@ -42,6 +61,7 @@ services:
       - WPSCAN_API_TOKEN=${WPSCAN_API_TOKEN}
       - SHODAN_API_KEY=${SHODAN_API_KEY}
       - OAST_SERVER=${OAST_SERVER}
+      - TOOLS_SSH_PASSWORD=${TOOLS_SSH_PASSWORD}
     volumes:
       - ./data:/data
       # Mount subenum-advanced.sh read-only so the container can call it directly
@@ -55,27 +75,15 @@ services:
     image: dperson/torproxy
     restart: always
     environment:
-      - TOR_PASSWORD=pentest_tor_password
+      - TOR_PASSWORD=${TOR_PASSWORD}
     ports:
       - "9050:9050"   # Socks5 proxy
       - "8118:8118"   # HTTP proxy
     networks:
       - pentest_network
 
-# (Optional) Local Ollama LLM Container. Uncomment if your Kali VM has > 16GB RAM.
-#  ollama:
-#    image: ollama/ollama
-#    restart: always
-#    volumes:
-#      - ollama_data:/root/.ollama
-#    ports:
-#      - "11434:11434"
-#    networks:
-#      - pentest_network
-
 volumes:
   n8n_data:
-#  ollama_data:
 
 networks:
   pentest_network:

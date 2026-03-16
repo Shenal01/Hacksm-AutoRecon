@@ -86,8 +86,9 @@ recursive_enum() {
         return
     fi
     
-    # Create temp file for this subdomain
-    local temp_file="$DOMAIN/recon/temp_${RANDOM}.txt"
+    # Create temp file for this subdomain — mktemp avoids $RANDOM collision in parallel
+    local temp_file
+    temp_file="$(mktemp "$DOMAIN/recon/temp_XXXXXXXX.txt")"
     enumerate_domain "$subdomain" "$temp_file" "$((current_depth - root_depth + 1))" &
 }
 
@@ -97,7 +98,12 @@ for sub in $FIRST_LEVEL_SUBS; do
     
     # Limit parallel processes to avoid system crash / ban
     if [ $(jobs -r | wc -l) -ge 15 ]; then
-        wait -n
+        # wait -n requires bash 4.3+; use it if available, else sleep briefly
+        if [[ "${BASH_VERSINFO[0]}" -gt 4 ]] || [[ "${BASH_VERSINFO[0]}" -eq 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+            wait -n
+        else
+            sleep 1
+        fi
     fi
 done
 
@@ -118,8 +124,9 @@ print_result "Total Unique Subdomains (Pre-Filter): ${BLUE}$TOTAL_COUNT${NC}"
 # Out-of-Scope Filtering
 # ------------------------------------------------------------------------------
 if [ -n "$OUT_OF_SCOPE_FILE" ] && [ -f "$OUT_OF_SCOPE_FILE" ]; then
-    print_status "Applying Out-Of-Scope Regex Filter from: ${YELLOW}$OUT_OF_SCOPE_FILE${NC}"
-    grep -v -f "$OUT_OF_SCOPE_FILE" "$FINAL_SUBDOMAINS" > "$DOMAIN/recon/filtered_subs.txt"
+    print_status "Applying Out-Of-Scope Fixed-String Filter from: ${YELLOW}$OUT_OF_SCOPE_FILE${NC}"
+    # -F treats each pattern as a fixed string (not regex) to prevent metachar false-exclusions
+    grep -vF -f "$OUT_OF_SCOPE_FILE" "$FINAL_SUBDOMAINS" > "$DOMAIN/recon/filtered_subs.txt"
     mv "$DOMAIN/recon/filtered_subs.txt" "$FINAL_SUBDOMAINS"
     FINAL_COUNT=$(cat "$FINAL_SUBDOMAINS" 2>/dev/null | wc -l)
     print_result "Total In-Scope Subdomains (Post-Filter): ${GREEN}$FINAL_COUNT${NC}"
