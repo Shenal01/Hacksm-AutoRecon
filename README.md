@@ -10,54 +10,65 @@ For full repo push + VM setup instructions, see:
 
 - `DEPLOYMENT_GUIDE.md`
 
-## How Does It Work?
+## Workflow Overview
 
-- **Trigger:** Start a scan via webhook or schedule (cron).
-- **Input Validation:** Ensures targets and scope are correct.
-- **Preflight Checks:** Validates environment, toolchain, and wordlists.
-- **Recon & Enumeration:** Discovers subdomains, resolves DNS, scans ports, probes HTTP, fingerprints tech, crawls, and extracts endpoints.
-- **Fuzzing & Testing:** Runs XSS, directory, CVE, LFI, SQLi, parameter, API, CORS, and 403 bypass tests.
-- **Aggregation:** Collects metrics and findings, generates a Markdown report, and sends Discord notifications.
-- **Error Handling:** Global error workflow alerts on failures.
-- **Cleanup:** Scheduled removal of old temp files.
+This workflow is designed as a phased security pipeline with deterministic gates and report-ready outputs.
+
+- **Input Channels:** Webhook trigger for on-demand scans and cron trigger for scheduled monitoring.
+- **Execution Engine:** n8n orchestrates all phases and sends controlled commands to the tools container.
+- **Data Plane:** Artifacts flow through `/data/temp`, then converge into normalized findings and `/data/reports`.
+- **Control Plane:** Merge gates synchronize parallel branches before aggregation.
+- **Safety Layer:** Allow-list enforcement, blocked-pattern checks, preflight validation, and error workflow alerts.
+
+## Pipeline Stages
+
+| Stage | Purpose | Typical Outputs |
+|---|---|---|
+| `1. Intake` | Validate target, scope, and run metadata | normalized input + `scan_id` |
+| `2. Preflight` | Verify tools, directories, and templates | binary/version checks, readiness status |
+| `3. Discovery` | Build attack surface from passive+active recon | subdomains, DNS, ports, endpoints, JS assets |
+| `4. Guided Testing` | Select and run allowed testing commands | tool-specific findings and raw logs |
+| `5. Parallel Checks` | Run multiple vulnerability families concurrently | XSS/CVE/LFI/SQLi/API/CORS/403 outputs |
+| `6. Aggregation` | Merge branches and normalize findings | severity buckets + coverage metrics |
+| `7. Reporting` | Build and persist final report | markdown report on disk + Discord alert |
 
 ## Visual Workflow Diagram
 
-Below is a step-by-step diagram showing the workflow logic for new users:
+The diagram below shows the full flow from trigger to report, including error and cleanup side-paths:
 
 ```mermaid
 flowchart TB
         %% Main happy-path
         subgraph P1[Phase 1 - Intake]
-            Start([Start Scan\nWebhook or Scheduler])
-            Input[Parse and Validate Input]
-            Env[Preflight\nEnv + Toolchain]
+            Start([Start])
+            Input[Validate Input]
+            Env[Preflight]
         end
 
         subgraph P2[Phase 2 - Recon and Mapping]
-            Recon[Recon\nCoordinator]
-            Subenum[Deep Subdomain\nEnumeration]
-            DNS[DNS Resolution]
-            Ports[Port Scan]
+            Recon[Recon]
+            Subenum[Subdomain Enum]
+            DNS[DNS]
+            Ports[Ports]
             HTTP[HTTP Probe]
-            Tech[Tech\nFingerprinting]
-            Crawl[Crawling + Historical URLs]
-            Endpoints[Endpoint + Param\nDiscovery]
-            JS[JavaScript Secret\nScan]
+            Tech[Tech Fingerprint]
+            Crawl[Crawl + History]
+            Endpoints[Endpoint Discovery]
+            JS[JS Secret Scan]
         end
 
         subgraph P3[Phase 3 - Guided Testing]
-            AI[Local\nDecision Engine]
-            Allow[Security Gate\nAllow-list Enforced]
-            Exec[Execute Approved\nCommands]
-            Tests[Security Tests\nXSS, CVE, SQLi, LFI\nAPI, CORS, 403]
+            AI[Decision Engine]
+            Allow[Security Gate]
+            Exec[Run Approved Cmd]
+            Tests[Vuln Tests]
         end
 
         subgraph P4[Phase 4 - Results]
-            Metrics[Aggregate Metrics\nand Findings]
-            Report[Generate Markdown\nReport]
-            Save[(Save Report to Disk)]
-            Notify[[Discord\nCompletion Alert]]
+            Metrics[Aggregate Findings]
+            Report[Build Report]
+            Save[(Save Report)]
+            Notify[[Discord Alert]]
         end
 
         Start --> Input --> Env --> Recon --> Subenum --> DNS --> Ports --> HTTP --> Tech --> Crawl --> Endpoints --> JS --> AI --> Allow --> Exec --> Tests --> Metrics --> Report
@@ -65,8 +76,8 @@ flowchart TB
         Report --> Notify
 
         %% Side services
-        Error[[Global Error\nHandler]]
-        Cleanup[[Scheduled Temp\nCleanup]]
+        Error[[Error Handler]]
+        Cleanup[[Temp Cleanup]]
         Error -. on failure .-> Notify
         Cleanup -. periodic maintenance .-> Save
 
@@ -86,7 +97,24 @@ flowchart TB
         class Error,Cleanup support;
 ```
 
-**Each box represents a step in the workflow. Follow the arrows to see the scan process from start to finish.**
+**Reading tip:** follow the center path top to bottom for the happy path, then check dashed arrows for side services.
+
+Legend:
+- `Validate Input`: Parse and validate input target and scope.
+- `Preflight`: Verify binaries, directories, and template readiness.
+- `Subdomain Enum`: Deep subdomain discovery (script + passive tools).
+- `Tech Fingerprint`: Detect technologies from live hosts.
+- `Endpoint Discovery`: Build endpoint list and discover parameters.
+- `Decision Engine`: Select tools based on findings and allow-list policy.
+- `Vuln Tests`: XSS, CVE, SQLi, LFI, API, CORS, and 403 checks.
+- `Aggregate Findings`: Merge outputs and build normalized severity buckets.
+
+## Why This Design Works
+
+- **Scalable:** expensive test branches run in parallel and merge deterministically.
+- **Traceable:** every run is tied to a `scan_id` and explicit temp/report artifacts.
+- **Safer-by-default:** command generation is gated by allow-list and blocked-pattern controls.
+- **Operationally practical:** failures route to error workflow; stale artifacts are cleaned on schedule.
 
 ## Setup & Installation
 
