@@ -155,7 +155,7 @@ Wait until bootstrap completes and services are healthy.
 - `pentest_workflow.json`
 - `pentest_error_workflow.json`
 4. Activate workflows
-5. Verify main workflow setting points to `Pentest Error Handler`
+5. errorWorkflow should point to: Global Error Alert - Discord
 
 ## 5. Run First Smoke Test
 

@@ -130,7 +130,7 @@ cd pentest-automation
 ```
 
 ### 3. Environment Variables
-Create a `.env` file or set these in n8n:
+Copy `.env.example` to `.env` (`cp .env.example .env`) and fill it, or set these in n8n:
 - SHODAN_API_KEY
 - GITHUB_TOKEN
 - DISCORD_WEBHOOK_URL
