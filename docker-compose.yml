@@ -45,7 +45,7 @@ services:
     volumes:
       - ./data:/data
       # Mount subenum-advanced.sh read-only so the container can call it directly
-      - ../subenum-advanced.sh:/data/subenum-advanced.sh:ro
+      - ./subenum-advanced.sh:/data/subenum-advanced.sh:ro
     networks:
       - pentest_network
     depends_on:
