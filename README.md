@@ -4,6 +4,57 @@ A fully containerized, autonomous penetration testing and bug bounty framework. 
 
 ---
 
+## Quick Start (Full Flow)
+
+Run these commands in order on your Kali Linux VM:
+
+```bash
+# 1. Install prerequisites
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git docker.io docker-compose curl jq
+sudo systemctl enable docker --now
+sudo usermod -aG docker $USER && newgrp docker
+
+# 2. Clone the repository
+git clone https://github.com/YOUR_USERNAME/pentest-automation.git
+cd pentest-automation
+
+# 3. Configure API keys
+cp .env.example .env
+nano .env       # Fill in: SHODAN_API_KEY, GITHUB_TOKEN, DISCORD_WEBHOOK_URL, GEMINI_API_KEY
+
+# 4. Create data folders and add your playbook
+mkdir -p data/reports data/wordlists data/templates data/temp
+cp /path/to/Pentest-Playbook.md data/
+
+# 5. Build and start all containers
+docker-compose up -d --build
+
+# Monitor bootstrap progress (takes 10-20 min on first run)
+docker logs -f pentest-tools-api
+# Wait until: "Bootstrap Complete. Container is armed and ready."
+```
+
+**n8n Setup (browser):**
+1. Open `http://localhost:5678`
+2. Create your Owner account (email + password)
+3. Go to **Settings** → **Environment Variables** → add your 4 API keys
+4. Click **Workflows** → **Import from File** → select `pentest_workflow.json`
+5. Click **Activate** (toggle, top right)
+
+**Run your first scan:**
+```bash
+curl -X POST http://localhost:5678/webhook/start-scan \
+  -H "Content-Type: application/json" \
+  -d '{"target": "authorized-target.com"}'
+```
+
+**Results:**
+- Markdown report saved to `data/reports/authorized-target.com_scan_XXXXX.md`
+- Discord alert fires automatically when the scan completes
+
+---
+
 ## Requirements
 
 | Spec | Minimum | Recommended |
