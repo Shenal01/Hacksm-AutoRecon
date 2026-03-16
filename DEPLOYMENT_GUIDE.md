@@ -243,6 +243,16 @@ docker compose build --no-cache pentest-tools-api
 docker compose up -d
 ```
 
+If logs show `failed to compile x8` with `openssl-sys` / `openssl.pc` errors:
+
+```bash
+git pull
+docker compose build --no-cache pentest-tools-api
+rm -f data/.bootstrap_complete
+docker compose up -d --force-recreate pentest-tools-api
+docker compose logs --tail=200 pentest-tools-api
+```
+
 ### n8n build fails with "Unsupported base image: no known package manager found"
 - Cause: new upstream `docker.n8n.io/n8nio/n8n` images no longer expose a package manager in the final stage.
 - Fix: pull latest repo and rebuild only `n8n`:
