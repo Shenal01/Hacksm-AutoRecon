@@ -4,6 +4,92 @@ A fully containerized, autonomous penetration testing and bug bounty framework. 
 
 ---
 
+## Architecture Overview
+
+```mermaid
+graph TD
+    classDef trigger fill:#ff9900,color:#fff,stroke:#333;
+    classDef recon fill:#3b82f6,color:#fff,stroke:#333;
+    classDef ai filter fill:#8b5cf6,color:#fff,stroke:#333;
+    classDef active fill:#ef4444,color:#fff,stroke:#333;
+    classDef reporting fill:#10b981,color:#fff,stroke:#333;
+    classDef stealth fill:#fbbf24,color:#000,stroke:#333;
+
+    Start((Webhook/Domain)) -.-> |Target Scope| Phase1
+    class Start trigger
+
+    subgraph "Phase 1: Enrichment (Flow 1)"
+        Phase1[Shodan API] --> Phase1b[asnmap IP Blocks]
+        Phase1b --> Phase1c[GitHub API Leak Search]
+        Phase1c --> Dorking[Google/Git Dorking\nRotating Proxies + Delays]
+    end
+    class Phase1,Phase1b,Phase1c,Dorking recon
+
+    subgraph "Phase 2: Discovery (Flow 1)"
+        Dorking --> DeepEnum["subenum-advanced.sh\nRecursive 3-4 Layers"]
+        DeepEnum --> RegexFilter{Out-of-Scope\nFilter}
+        RegexFilter -.-> |Drop| Trash[Trash]
+        RegexFilter --> Subzy[Subzy Takeover Check]
+    end
+    class DeepEnum,RegexFilter,Subzy recon
+
+    subgraph "Phase 3: Unmasking & Fingerprinting (Flow 1)"
+        Subzy --> DNSX[DNS Resolution dnsx]
+        DNSX --> Naabu[Naabu Port Scan]
+        Naabu --> Wafw00f{wafw00f WAF Detect}
+        
+        Wafw00f -- Cloudflare/Akamai --> Unmask[Censys/tlsx Unmasking]
+        Wafw00f -- Standard/None --> Httpx[httpx Probing on\nNaabu Ports]
+        
+        Unmask --> Proxy[Enable proxychains4]
+        Proxy --> Httpx
+        
+        Httpx --> Wappalyzer[Tech Fingerprinting\nwappalyzergo]
+        Wappalyzer --> Katana[Headless Crawling\nKatana JS Parse]
+        Katana --> Waymore[Historical URLs\nwaymore & gau]
+        Waymore --> XnLink[Endpoint Extraction\nxnLinkFinder]
+        XnLink --> X8[Hidden Params\nx8]
+    end
+    class DNSX,Naabu,Wafw00f,Unmask,Proxy,Httpx,Wappalyzer,Katana,Waymore,XnLink,X8 stealth
+
+    subgraph "Phase 4: Dynamic Agent & Active Scan (Flow 2)"
+        X8 --> Agent{AI Agent Node\nReads Tech Stack}
+        
+        Agent -- WordPress --> WP[wpscan + wpprobe\n+ Nuclei WP Templates]
+        Agent -- Jira --> Jira[Nuclei Jira CVEs]
+        Agent -- Standard API --> Kiterunner[Feroxbuster\n+ Kiterunner]
+        
+        WP --> NucleiGlobal[Nuclei Exposures/Takeovers]
+        Jira --> NucleiGlobal
+        Kiterunner --> NucleiGlobal
+        
+        NucleiGlobal --> FFUF[ffuf LFI/SSTI\nPayloadsAllTheThings]
+        FFUF --> Dalfox[Dalfox XSS]
+        Dalfox --> SQLmap[sqlmap Batch\nUnconditional Scan]
+    end
+    class Agent,WP,Jira,Kiterunner,NucleiGlobal,FFUF,Dalfox,SQLmap active
+
+    subgraph "Phase 5: Hybrid AI Verification"
+        SQLmap --> Switch{n8n Severity Switch}
+        
+        Switch -- Low/Info --> LocalDB[(Local SQLite DB)]
+        Switch -- Medium --> Ollama[Local Ollama Summarize]
+        Switch -- High/Critical --> Gemini[Gemini API Verification]
+    end
+    class Switch,LocalDB,Ollama,Gemini ai
+
+    subgraph "Phase 6: Reporting"
+        Ollama --> RepoWrite[Save Alert.md to /data]
+        Gemini --> RepoWrite2[Generate & Save Critical_Report.md to /data]
+        
+        RepoWrite --> DiscordWeb[Discord Webhook Alert]
+        RepoWrite2 --> DiscordWeb
+    end
+    class RepoWrite,RepoWrite2,DiscordWeb reporting
+```
+
+---
+
 ## Quick Start (Full Flow)
 
 Run these commands in order on your Kali Linux VM:
