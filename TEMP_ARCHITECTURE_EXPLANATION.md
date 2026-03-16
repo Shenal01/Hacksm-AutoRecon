@@ -1,203 +1,193 @@
-# Temporary Architecture Explanation
+# Temporary Architecture Explanation (Clear Step-by-Step)
 
-This is a temporary document to explain what this project is, how it works, and how data flows across components.
+This document explains, in plain language and technical detail:
+- what this project is
+- how each component works
+- the exact execution steps from trigger to report
+- where files, wordlists, and templates are read/written
 
-## 1. What This Project Is
+## 1. One-Minute Summary
 
-This project is an automated security testing pipeline built around **n8n workflows** and a dedicated **tools container**.
+This project is an automated pentest/recon pipeline running on Docker.
 
-It performs:
-- reconnaissance
-- endpoint discovery
-- targeted vulnerability checks
-- result aggregation
-- report generation
-- notification and error handling
+- `n8n` is the brain (workflow orchestrator).
+- `pentest-tools-api` is the worker (all security tools run here).
+- `tor-proxy` is used for selected routed operations.
+- `./data` is the shared storage for temp files, wordlists, and reports.
 
-It is designed to reduce manual effort while keeping execution deterministic and auditable.
+Input enters from webhook/cron, tools run in phases, outputs are merged, normalized, and turned into a report and alert.
 
-## 2. High-Level Components
+## 2. System Components and Responsibilities
 
-### 2.1 `n8n` service
-- Orchestrates the full pipeline (node-to-node execution).
-- Receives scan requests via webhook or schedule.
-- Runs command and code nodes.
-- Aggregates outputs and generates reports.
+### 2.1 `n8n` container
+- Receives scan requests.
+- Runs workflow logic and control nodes.
+- Sends SSH commands to tools container.
+- Aggregates outputs and generates final markdown report.
+- Sends Discord notifications.
 
-### 2.2 `pentest-tools-api` service
-- Ubuntu-based container with scanning tools installed.
-- Exposes SSH for n8n command execution.
-- Contains toolchain: subfinder, httpx, naabu, nuclei, dalfox, ffuf, sqlmap, arjun, kiterunner, wafw00f, katana, gau, waybackurls, xnLinkFinder, trufflehog, etc.
+### 2.2 `pentest-tools-api` container
+- Hosts toolchain (`subfinder`, `httpx`, `naabu`, `nuclei`, `dalfox`, `ffuf`, `sqlmap`, `arjun`, `kr`, `wafw00f`, `katana`, `gau`, `waybackurls`, `xnLinkFinder`, `trufflehog`, etc.).
+- Executes commands from n8n over SSH.
+- Writes raw output artifacts under `/data/temp` and reports under `/data/reports`.
 
-### 2.3 `tor-proxy` service
-- Used for Tor-routed dorking where configured.
-- Provides privacy/routing path for selected recon actions.
+### 2.3 `tor-proxy` container
+- Provides socks endpoint for tor-routed dorking/paths where configured.
 
-### 2.4 Shared data volume (`./data:/data`)
-- Shared between n8n and tools container.
-- Common paths:
-  - `/data/temp` for intermediate artifacts
-  - `/data/reports` for final reports
-  - `/data/wordlists` for wordlists/payload repositories
+### 2.4 Shared volume
+- Docker mount: `./data:/data`
+- Main locations:
+  - `/data/temp`: per-scan artifacts
+  - `/data/reports`: generated reports
+  - `/data/wordlists`: SecLists/payload lists/API route lists
 
-## 2.5 System Architecture Diagram
+## 3. System Diagram
 
 ```mermaid
 flowchart TB
-  U[User or Scheduler]
-  GH[GitHub Repository]
-  VM[Linux VM Host]
+    U[Operator or Scheduler] -->|Webhook or Cron| N8N
 
-  subgraph VMStack[Docker Compose Stack on VM]
-    N8N[n8n Service\nWorkflow Orchestrator\nPort 5678]
-    TOOLS[pentest-tools-api Service\nToolchain + SSH]
-    TOR[tor-proxy Service\nSOCKS5 for routed dorking]
-    VOL[(Shared Data Volume\n./data:/data)]
-  end
+    subgraph VM[VM Host]
+        subgraph DC[Docker Compose]
+            N8N[n8n\nOrchestrator]
+            TOOLS[pentest-tools-api\nTool Executor]
+            TOR[tor-proxy]
+            VOL[(./data:/data)]
+        end
+    end
 
-  subgraph TargetWorld[External Target Surface]
-    TGT[Authorized Target Domains and Hosts]
-    APIs[External APIs\nShodan, GitHub, Gemini, WPScan, OAST]
-    DISCORD[Discord Webhook]
-  end
+    N8N -->|SSH command execution| TOOLS
+    TOOLS -->|Tor-routed command path| TOR
 
-  U -->|Webhook or Cron Trigger| N8N
-  GH -->|git clone and updates| VM
+    TOOLS -->|read/write| VOL
+    N8N -->|read/write| VOL
 
-  N8N -->|SSH commands| TOOLS
-  N8N -->|Tor-routed command path when needed| TOR
-
-  TOOLS -->|Writes temp outputs| VOL
-  TOOLS -->|Reads wordlists and payloads| VOL
-  N8N -->|Reads findings and writes reports| VOL
-
-  TOOLS -->|Recon and scanning traffic| TGT
-  N8N -->|API-driven enrichment and verification| APIs
-  N8N -->|Completion and error alerts| DISCORD
-
-  VOL -->|Reports and artifacts| U
+    TOOLS -->|scan traffic| TARGET[Authorized Target Infrastructure]
+    N8N -->|API calls| API[Shodan, GitHub, Gemini, WPScan, OAST]
+    N8N -->|alerts| DISCORD[Discord Webhook]
 ```
 
-## 3. Runtime Architecture
+## 4. Exact End-to-End Execution Steps
 
-The flow is split into structured phases.
+## 4.1 Trigger and intake
+1. A request hits webhook (or cron starts scheduled run).
+2. Input is validated (`target`, scope options, etc.).
+3. `scan_id` is generated for traceability.
 
-1. Intake and validation
-- Parse and validate target input.
-- Build a scan ID for run correlation.
+## 4.2 Preflight guardrail phase
+1. n8n asks tools container to verify binaries.
+2. It validates writable dirs (`/data/temp`, `/data/reports`, `/data/wordlists`, `/data/templates`).
+3. It refreshes nuclei templates (`nuclei -update-templates`).
+4. If anything fails, workflow stops early and error flow can alert.
 
-2. Preflight checks
-- Verify binary availability and writable directories.
-- Refresh nuclei templates.
-- Confirm environment readiness before heavy scan phases.
+## 4.3 Discovery phase
+1. Subdomain enumeration (`subenum-advanced.sh` + subfinder/assetfinder/scilla).
+2. DNS resolution (`dnsx`).
+3. Port scan (`naabu`) preserving `host:port`.
+4. HTTP probing (`httpx`) against discovered targets.
+5. WAF signal collection (`wafw00f`).
+6. Tech fingerprint extraction.
+7. Crawl and historical URL collection (`katana`, `gau`, `waybackurls`).
+8. Endpoint extraction (`xnLinkFinder`).
+9. Parameter discovery (`x8`, `arjun`).
 
-3. Recon and discovery
-- Subdomain enumeration (`subenum-advanced.sh`, subfinder, assetfinder, scilla).
-- DNS resolution (`dnsx`).
-- Port discovery (`naabu`).
-- HTTP probing (`httpx`).
-- WAF detection (`wafw00f`).
-- Tech fingerprinting.
-- Crawl/historical URL collection (`katana`, `gau`, `waybackurls`).
-- Endpoint extraction (`xnLinkFinder`) and parameter discovery (`x8`, `arjun`).
+## 4.4 Controlled active testing
+1. Local decision node selects tools based on observed technologies.
+2. Security gate enforces strict allow-list and blocked pattern checks.
+3. Approved command executes in tools container.
 
-4. Controlled active testing
-- AI/local decision node selects from strict allow-list commands only.
-- Security gate enforces allow-list and blocks dangerous patterns.
-- Execute approved command(s) in tools container.
-
-5. Parallel vulnerability checks
+## 4.5 Parallel vulnerability checks
+Phase 5 fans out into multiple branches in parallel:
 - XSS (`dalfox`)
 - CVE/misconfig (`nuclei`)
-- Payload fuzz (`ffuf`)
+- LFI/SSTI payload fuzzing (`ffuf`)
 - SQLi (`sqlmap`)
-- API route checks (`kiterunner`)
+- API route probing (`kr`)
 - CORS checks (`nuclei`)
 - 403 bypass probes
 
-6. Merge + aggregate
-- Merge gates wait for parallel branches and side streams.
-- Coverage metrics are collected.
-- Aggregate node normalizes findings into severity buckets.
+## 4.6 Merge and aggregate
+1. Merge gates wait for all required branches.
+2. Coverage metrics are computed.
+3. Aggregate node parses stdout + files into normalized findings:
+  - `critical[]`
+  - `medium[]`
+  - `low[]`
+  - `coverage{}`
+  - `tool_versions{}`
 
-7. Reporting and notifications
-- Build final markdown report.
-- Save report to `/data/reports`.
-- Send completion/failure notifications to Discord.
+## 4.7 Reporting and alerting
+1. Final markdown report is generated.
+2. Report is saved to `/data/reports`.
+3. Completion notification sent to Discord.
+4. Error workflow handles failures with alerting.
 
-## 4. How Path Resolution Works
+## 5. How Template/Wordlist Paths Are Resolved (Important)
 
-Path resolution is deterministic and does not depend on host-specific relative paths.
+This is deterministic and consistent because of three rules.
 
-### 4.1 Why tools find templates/wordlists correctly
-- Bootstrap installs/downloads required lists under `/data/wordlists`.
-- Workflow commands use absolute paths (for example `-w /data/wordlists/...`).
-- Nuclei templates are updated via `nuclei -update-templates`.
-- All commands execute in the same container context where these paths exist.
+1. Bootstrap downloads resources to fixed paths
+- `/data/wordlists/SecLists/...`
+- `/data/wordlists/payloads/...`
+- `/data/wordlists/httparchive_apiroutes_2024.txt`
 
-### 4.2 Common examples
-- Feroxbuster wordlist from SecLists.
-- x8 and arjun parameter list from SecLists.
-- ffuf payload list built from coffinxp + PayloadsAllTheThings.
-- kiterunner list from `httparchive_apiroutes_2024.txt`.
+2. Commands use absolute paths
+- Example: `-w /data/wordlists/SecLists/...`
+- No dependence on current directory.
 
-## 5. Reliability and Safety Controls
+3. All commands run inside same tools container context
+- The paths exist where commands execute.
 
-- Preflight binary checks (fail early if tool missing).
-- Writable directory checks.
-- Explicit merge gates for parallel branch synchronization.
-- Deterministic local decision logic for tool selection.
-- Allow-list command enforcement and blocked pattern filtering.
-- Secrets injected via environment variables (not passed in payload where avoidable).
-- Error workflow for failure visibility.
+Nuclei specifics:
+- Template repo is updated by `nuclei -update-templates`.
+- Commands reference template categories (`cves/`, `vulnerabilities/`, `misconfiguration/`, `exposures/`, `vulnerabilities/cors/`).
 
-## 6. Data Model (Output Shape)
+## 6. Data and File Lifecycle
 
-Aggregate stage outputs a normalized result object containing:
-- `target`
-- `scan_id`
-- `total`
-- `critical[]`
-- `medium[]`
-- `low[]`
-- `coverage{}`
-- `tool_versions{}`
+1. Each scan writes temp artifacts with `SCAN_ID` under `/data/temp`.
+2. Intermediate files are reused across phases (recon -> endpoints -> testing -> aggregate).
+3. Final report is written to `/data/reports`.
+4. Scheduled cleanup removes stale temp directories/artifacts.
 
-This shape is then used by report and alert nodes.
+## 7. Reliability Controls Already Implemented
 
-## 7. Security Model
+- Preflight tool and directory checks.
+- Merge gates to avoid race conditions between parallel branches.
+- Safe command allow-list + blocked patterns.
+- Fail-closed behavior for missing OAST in relevant checks.
+- Runtime environment variable usage for secrets.
+- Structured aggregation model for deterministic output.
 
-- n8n UI protected with basic auth env vars.
-- Secrets in `.env` only.
-- SSH command execution restricted to known container endpoint.
-- Discord webhook and API keys are environment-injected.
-- Dangerous command patterns are blocked in security gate.
+## 8. Security Controls
 
-## 8. Operational Lifecycle
+- `N8N_BASIC_AUTH_*` protects n8n UI.
+- Secrets stay in `.env` (not hardcoded in workflow payload where avoidable).
+- SSH execution is constrained to expected container endpoint.
+- Discord/API keys are environment-injected.
 
-1. Deploy services with Docker Compose.
-2. Import and activate workflows in n8n.
-3. Trigger scan by webhook or cron.
-4. Observe execution graph and logs.
-5. Review report + alerts.
-6. Scheduled cleanup removes stale temp directories.
+## 9. Operator Steps (How You Actually Run It)
 
-## 9. Known Constraints
+1. `docker compose up -d --build`
+2. Open n8n UI (`http://<vm-ip>:5678`)
+3. Import `pentest_workflow.json` and `pentest_error_workflow.json`
+4. Activate both workflows
+5. Trigger scan via webhook payload
+6. Watch execution graph and logs
+7. Validate report in `/data/reports`
 
-- False positives are possible in automated security tools; manual validation remains required.
-- Scan performance depends on VM CPU/RAM/network and target size.
-- Some checks may be rate-limited by target/CDN protections.
-- OAST-based checks require a correctly configured OAST server.
+## 10. What Can Still Go Wrong
 
-## 10. Suggested Reading Order for New Team Members
+- Target rate-limiting/WAF may reduce findings.
+- External API quotas may limit enrichment.
+- Any automated scanner can produce false positives.
+- Large scopes need enough VM CPU/RAM and more runtime.
 
-1. `README.md`
-2. `DEPLOYMENT_GUIDE.md`
-3. `pentest_workflow.json` (import into n8n and inspect node graph)
-4. `pentest-tools-api/bootstrap.sh`
-5. `subenum-advanced.sh`
+## 11. Quick Reference
 
-## 11. Temporary Notes
+- Main workflow file: `pentest_workflow.json`
+- Error workflow file: `pentest_error_workflow.json`
+- Tool bootstrap: `pentest-tools-api/bootstrap.sh`
+- Subdomain script: `subenum-advanced.sh`
+- Deployment runbook: `DEPLOYMENT_GUIDE.md`
 
-This document is intentionally written as a temporary architecture explainer.
-If needed, it can be converted into a permanent `ARCHITECTURE.md` with diagrams and environment-specific variants.
+This is a temporary explanation document and can be promoted later to a permanent `ARCHITECTURE.md`.

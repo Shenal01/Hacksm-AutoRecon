@@ -54,7 +54,7 @@ flowchart TB
     U --> N8N
     CRON --> N8N
     N8N --> TOOLS
-    N8N --> TOR
+    TOOLS --> TOR
 
     TOOLS <--> DATA
     N8N <--> DATA
@@ -168,8 +168,9 @@ docker-compose up -d
 
 ## Data Retention
 
-- Temp files are stored in `/data/temp/<scan_id>/`.
-- Scheduled cleanup removes directories older than 7 days.
+- Most temp artifacts are stored as SCAN_ID-suffixed files in `/data/temp` (example: `/data/temp/httpx_${SCAN_ID}.json`).
+- Some tools also create per-scan directories when needed (example: `/data/temp/sqlmap_${SCAN_ID}/`).
+- Scheduled cleanup removes stale temp directories/artifacts.
 
 ## License
 
