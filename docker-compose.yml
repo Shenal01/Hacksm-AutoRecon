@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    restart: always
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_PERSONALIZATION_ENABLED=false
+      - N8N_EMAIL_MODE=false
+      - GENERIC_TIMEZONE=UTC
+      # Expose secrets from host .env into n8n automatically
+      - SHODAN_API_KEY=${SHODAN_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./data:/data
+    networks:
+      - pentest_network
+
+  pentest-tools-api:
+    build: 
+      context: ./pentest-tools-api
+      dockerfile: Dockerfile
+    restart: always
+    # Privileged is necessary for tools like masscan/naabu to use raw sockets for fast SYN scans.
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - ./data:/data
+    networks:
+      - pentest_network
+    depends_on:
+      - tor-proxy
+
+  tor-proxy:
+    image: dperson/torproxy
+    restart: always
+    environment:
+      - TOR_PASSWORD=pentest_tor_password
+    ports:
+      - "9050:9050"   # Socks5 proxy
+      - "8118:8118"   # HTTP proxy
+    networks:
+      - pentest_network
+
+# (Optional) Local Ollama LLM Container. Uncomment if your Kal VM has > 16GB RAM and you want free local AI filtering.
+#  ollama:
+#    image: ollama/ollama
+#    restart: always
+#    volumes:
+#      - ollama_data:/root/.ollama
+#    ports:
+#      - "11434:11434"
+#    networks:
+#      - pentest_network
+
+volumes:
+  n8n_data:
+#  ollama_data:
+
+networks:
+  pentest_network:
+    driver: bridge
