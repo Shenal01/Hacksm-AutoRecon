@@ -1,4 +1,4 @@
-# AI Pentest Automation — n8n Workflow
+# Recon Automation — n8n Workflow
 
 ## What is This?
 
