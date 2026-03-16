@@ -28,6 +28,11 @@ mkdir -p "$DOMAIN/recon"
 ALL_SUBDOMAINS="$DOMAIN/recon/all_subdomains_${DOMAIN}.txt"
 FINAL_SUBDOMAINS="$DOMAIN/recon/final_subdomains_${DOMAIN}.txt"
 
+SCRIPT_START=$(date +%s)
+SCRIPT_TIMEOUT=1200
+SCRIPT_DEADLINE=$(( SCRIPT_START + SCRIPT_TIMEOUT ))
+TIMEOUT_HIT=0
+
 print_status() { echo -e "${CYAN}[$(date +%H:%M:%S)]${NC} $1"; }
 print_result() { echo -e "${GREEN}[+]${NC} $1"; }
 print_warning() { echo -e "${YELLOW}[!]${NC} $1"; }
@@ -69,11 +74,17 @@ rm -f "$ALL_SUBDOMAINS" "$FINAL_SUBDOMAINS" "$DOMAIN/recon"/temp_*.txt
 print_status "Starting Layer 1 subdomain enumeration for: ${BLUE}$DOMAIN${NC}"
 enumerate_domain "$DOMAIN" "$ALL_SUBDOMAINS" "1"
 
+if [ "$(date +%s)" -ge "$SCRIPT_DEADLINE" ]; then
+    print_warning "Layer 1 enumeration used the full time budget. Skipping recursion."
+    TIMEOUT_HIT=1
+fi
+
 # ------------------------------------------------------------------------------
 # Layer 2 & 3: Deep Recursion
 # ------------------------------------------------------------------------------
-FIRST_LEVEL_SUBS=$(cat "$ALL_SUBDOMAINS" 2>/dev/null | sort -u)
-print_result "Found $(echo "$FIRST_LEVEL_SUBS" | wc -l) Layer 1 subdomains."
+sort -u "$ALL_SUBDOMAINS" -o "$ALL_SUBDOMAINS" 2>/dev/null || true
+FIRST_LEVEL_COUNT=$(wc -l < "$ALL_SUBDOMAINS" 2>/dev/null || echo 0)
+print_result "Found ${FIRST_LEVEL_COUNT} Layer 1 subdomains."
 
 recursive_enum() {
     local subdomain=$1
@@ -93,7 +104,9 @@ recursive_enum() {
 }
 
 print_status "Starting parallel deep recursive enumeration (up to 4 layers)..."
-for sub in $FIRST_LEVEL_SUBS; do
+while IFS= read -r sub; do
+    [ "$TIMEOUT_HIT" -eq 1 ] && break
+    [ -z "$sub" ] && continue
     recursive_enum "$sub" "$ALL_SUBDOMAINS"
     
     # Limit parallel processes to avoid system crash / ban
@@ -105,7 +118,18 @@ for sub in $FIRST_LEVEL_SUBS; do
             sleep 1
         fi
     fi
-done
+
+    if [ "$(date +%s)" -ge "$SCRIPT_DEADLINE" ]; then
+        print_warning "20-minute time budget reached during recursion. Stopping new jobs."
+        TIMEOUT_HIT=1
+        break
+    fi
+done < "$ALL_SUBDOMAINS"
+
+if [ "$TIMEOUT_HIT" -eq 1 ]; then
+    print_warning "Killing remaining background enumeration jobs..."
+    jobs -p | xargs -r kill 2>/dev/null || true
+fi
 
 print_status "Waiting for remaining recursive jobs to complete..."
 wait
@@ -137,6 +161,14 @@ fi
 # ------------------------------------------------------------------------------
 # Completion List
 # ------------------------------------------------------------------------------
+if [ "$TIMEOUT_HIT" -eq 1 ]; then
+    FINAL_COUNT=$(wc -l < "$FINAL_SUBDOMAINS" 2>/dev/null || echo 0)
+    echo "SUBENUM_TIMEOUT_HIT:${FINAL_COUNT}"
+else
+    FINAL_COUNT=$(wc -l < "$FINAL_SUBDOMAINS" 2>/dev/null || echo 0)
+    echo "SUBENUM_COMPLETE:${FINAL_COUNT}"
+fi
+
 echo
 print_status "${GREEN}=== EXTRACTION COMPLETE ===${NC}"
 print_result "Final targets ready for n8n Flow 2."

@@ -5,6 +5,9 @@ services:
       dockerfile: Dockerfile
     image: pentest-automation-n8n
     restart: always
+    depends_on:
+      pentest-tools-api:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "node -e \"const http=require('http'); const attempt=(path, fallback)=>http.get({host:'127.0.0.1',port:5678,path}, res => process.exit(res.statusCode < 500 ? 0 : 1)).on('error', () => fallback ? attempt('/', false) : process.exit(1)); attempt('/healthz', true);\""]
       interval: 30s
@@ -28,9 +31,12 @@ services:
       - OAST_SERVER=${OAST_SERVER}
       - MONITOR_TARGETS=${MONITOR_TARGETS}
       - TOOLS_SSH_PASSWORD=${TOOLS_SSH_PASSWORD}
+      # n8n v0.x basic auth (kept for compatibility with older images)
       - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE}
       - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
       - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+      # n8n v1+ user management (required for n8n v1.x and above)
+      - N8N_USER_MANAGEMENT_DISABLED=false
     volumes:
       - n8n_data:/home/node/.n8n
       - ./data:/data
@@ -66,14 +72,21 @@ services:
     networks:
       - pentest_network
     depends_on:
-      - tor-proxy
+      tor-proxy:
+        condition: service_healthy
 
   tor-proxy:
     image: dperson/torproxy
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf --socks5-hostname 127.0.0.1:9050 https://check.torproject.org/api/ip -o /dev/null --max-time 15 || exit 1"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 60s
     ports:
-      - "9050:9050"   # Socks5 proxy
-      - "8118:8118"   # HTTP proxy
+      - "127.0.0.1:9050:9050"   # Socks5 proxy
+      - "127.0.0.1:8118:8118"   # HTTP proxy
     networks:
       - pentest_network
 
