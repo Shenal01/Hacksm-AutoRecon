@@ -121,12 +121,14 @@ nano .env
 Set all required values:
 - `SHODAN_API_KEY`
 - `GITHUB_TOKEN`
+- `GH_TOKEN` (optional alias; can match `GITHUB_TOKEN`)
 - `DISCORD_WEBHOOK_URL`
 - `GEMINI_API_KEY`
 - `WPSCAN_API_TOKEN`
 - `OAST_SERVER`
 - `TOOLS_SSH_PASSWORD`
-- `MONITOR_TARGETS`
+- `SCAN_API_TOKEN`
+- `MONITOR_TARGETS` (optional; leave empty to disable weekly monitoring)
 - `N8N_BASIC_AUTH_ACTIVE=true`
 - `N8N_BASIC_AUTH_USER`
 - `N8N_BASIC_AUTH_PASSWORD`
@@ -164,6 +166,7 @@ Wait until bootstrap completes and services are healthy.
 ```bash
 curl -X POST "http://<vm-ip>:5678/webhook/start-scan" \
   -u "<N8N_BASIC_AUTH_USER>:<N8N_BASIC_AUTH_PASSWORD>" \
+  -H "x-scan-token: <SCAN_API_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"target":"example.com"}'
 ```

@@ -6,6 +6,8 @@ FROM docker.n8n.io/n8nio/n8n
 
 USER root
 
+# Copy only sshpass from the builder stage so the final n8n image does not need
+# a package manager available at build time.
 COPY --from=sshpass-builder /usr/bin/sshpass /usr/bin/sshpass
 
 RUN command -v /usr/bin/ssh >/dev/null 2>&1 || \

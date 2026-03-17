@@ -133,12 +133,14 @@ cd pentest-automation
 Copy `.env.example` to `.env` (`cp .env.example .env`) and fill it, or set these in n8n:
 - SHODAN_API_KEY
 - GITHUB_TOKEN
+- GH_TOKEN (optional alias for tool bootstrap/API access)
 - DISCORD_WEBHOOK_URL
 - GEMINI_API_KEY
 - OAST_SERVER
 - TOOLS_SSH_PASSWORD
+- SCAN_API_TOKEN
 - WPSCAN_API_TOKEN (optional)
-- MONITOR_TARGETS (for cron monitor)
+- MONITOR_TARGETS (optional for cron monitor)
 
 ### 4. Build & Run Docker Container
 ```sh
@@ -154,7 +156,7 @@ docker-compose up -d
 
 ## Usage Guide
 
-- **Webhook Scan:** Send a POST request to `/start-scan` with `{ "target": "example.com" }`.
+- **Webhook Scan:** Send a POST request to `/start-scan` with `{ "target": "example.com" }` and the `x-scan-token` header set to your `SCAN_API_TOKEN` value.
 - **Scheduled Scan:** Set up cron for weekly monitoring.
 - **Reports:** Reports are saved in `/data/reports/` and sent to Discord.
 - **Error Alerts:** Failures trigger Discord alerts via the error workflow.
