@@ -33,6 +33,7 @@ services:
       - OAST_SERVER=${OAST_SERVER}
       - MONITOR_TARGETS=${MONITOR_TARGETS}
       - TOOLS_SSH_PASSWORD=${TOOLS_SSH_PASSWORD}
+      - SCAN_API_TOKEN=${SCAN_API_TOKEN}
       # n8n v0.x basic auth (kept for compatibility with older images)
       - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE}
       - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
