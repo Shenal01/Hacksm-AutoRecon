@@ -24,6 +24,8 @@ services:
       - N8N_DIAGNOSTICS_ENABLED=false
       - N8N_PERSONALIZATION_ENABLED=false
       - GENERIC_TIMEZONE=UTC
+      # Allow access via plain HTTP (no HTTPS/TLS). Set to true only if behind a TLS reverse proxy.
+      - N8N_SECURE_COOKIE=false
       # Expose secrets from host .env into n8n workflow environment
       - SHODAN_API_KEY=${SHODAN_API_KEY}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
